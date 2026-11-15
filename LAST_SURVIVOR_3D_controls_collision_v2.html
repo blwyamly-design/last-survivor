@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>LAST SURVIVOR 3D - تجربة أولية</title>
+<style>
+  *{box-sizing:border-box} html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;font-family:Arial,sans-serif;touch-action:none}
+  #game{display:block;width:100%;height:100%}
+  #hud{position:fixed;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:center;color:white;pointer-events:none;text-shadow:0 2px 4px #000}
+  .tag{background:#102334cc;border:1px solid #ffffff55;border-radius:12px;padding:8px 11px;font-size:13px}
+  #help{position:fixed;top:56px;right:10px;color:#fff;background:#102334bb;padding:7px 10px;border-radius:10px;font-size:12px;pointer-events:none}
+  #controls{position:fixed;bottom:14px;left:0;right:0;display:flex;justify-content:space-between;align-items:end;padding:0 14px;gap:12px}
+  .joystick{width:142px;height:142px;border:2px solid #ffffff70;border-radius:50%;background:#102c42a8;position:relative;touch-action:none;user-select:none; -webkit-user-select:none;}
+  .joystick:before{content:"";position:absolute;inset:22px;border:1px dashed #ffffff55;border-radius:50%;}
+  #stick{position:absolute;width:58px;height:58px;left:50%;top:50%;transform:translate(-50%,-50%);border:2px solid #ffffffb0;border-radius:50%;background:#1e86a8e8;box-shadow:0 2px 8px #0008;pointer-events:none;}
+  button{border:1px solid #ffffff80;background:#122c42d9;color:#fff;border-radius:13px;font-size:17px;font-weight:bold;touch-action:none;user-select:none;-webkit-user-select:none}
+  button:active,.active{background:#1e86a8}
+  .actions{display:grid;grid-template-columns:repeat(2,58px);gap:7px}
+  .actions button{height:49px;font-size:12px}
+  .plane-control{display:none;background:#14506a;border-color:#9be8ff}
+  #planeView{display:none;background:#14506a;border-color:#9be8ff}
+  #miniMap{position:fixed;top:48px;right:10px;width:142px;height:142px;border:2px solid #b9edff;border-radius:14px;background:#102334dd;z-index:5;pointer-events:none}
+  /* خريطة أصغر عند تدوير الهاتف للوضع الأفقي حتى لا تزاحم أزرار اللعب */
+  @media (orientation:landscape) and (max-height:520px){
+    #miniMap{top:8px;right:8px;width:82px;height:82px;border-width:1px;border-radius:9px}
+    #help{top:96px;right:8px;max-width:150px;font-size:10px;padding:5px 7px}
+    #hud{top:6px;left:8px;right:8px}
+    .tag{padding:5px 7px;font-size:10px}
+  }
+  #car-control{display:none;background:#14506a;border-color:#9be8ff}
+  #status{position:fixed;bottom:126px;left:12px;color:#fff;background:#102334bb;border-radius:9px;padding:6px 9px;font-size:11px;pointer-events:none}
+  #backpackPanel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#06111dcc;z-index:20;padding:18px;color:white}
+  #backpackBox{width:min(340px,92vw);background:#132d40;border:1px solid #8bdfff88;border-radius:18px;padding:16px;box-shadow:0 10px 35px #0009}
+  #backpackBox h3{margin:0 0 12px;color:#8eeaff;text-align:center}
+  #weaponSlots{display:grid;gap:9px}
+  #weaponSlots button{padding:12px;text-align:right;font-size:14px}
+  #weaponSlots button.selected{background:#176b55;border-color:#7dffbd}
+  #closeBag{display:block;width:100%;margin-top:12px;padding:10px;font-size:14px}
+  #start{position:fixed;inset:0;background:#07131dcc;display:flex;align-items:center;justify-content:center;color:white;text-align:center;padding:24px}
+  #start .box{max-width:330px;background:#10283b;border:1px solid #ffffff55;border-radius:18px;padding:22px}
+  #start h2{margin:0 0 10px;color:#7ee7ff}
+  #start p{font-size:14px;line-height:1.6}
+  #go{padding:12px 24px;background:#087e9f;border:0;font-size:16px}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud"><div class="tag">LAST SURVIVOR 3D</div><div class="tag">تجربة أوفلاين أولية</div></div>
+<div id="help">حيّ كبير ومطار — اختر السلاح من حقيبة الظهر، واقترب من الباب لفتحه</div>
+<canvas id="miniMap" width="280" height="280" aria-label="الخريطة المصغرة"></canvas>
+<div id="status">تحميل العالم ثلاثي الأبعاد...</div>
+<div id="controls">
+  <div class="joystick" id="joystick" aria-label="عصا تحريك اللاعب بالاتجاهات الأربعة"><div id="stick"></div></div>
+  <div class="actions">
+    <button data-action="jump">قفز</button><button data-action="run">ركض</button>
+    <button data-action="crouch">انحناء</button><button id="door-control" data-action="open" style="display:none">فتح الباب</button><button data-action="fire">إطلاق</button><button data-action="backpack">🎒 الحقيبة</button><button data-action="reset">إعادة</button><button id="car-control" data-action="car">ركوب السيارة</button><button class="plane-control" id="planeEnter" data-action="plane">ركوب الطائرة</button><button class="plane-control" id="planeUp" data-action="planeUp">ارتفاع +</button><button class="plane-control" id="planeDown" data-action="planeDown">ارتفاع −</button><button id="planeView" data-action="planeView">منظور داخل الطائرة</button>
+  </div>
+</div>
+<div id="backpackPanel"><div id="backpackBox"><h3>🎒 حقيبة الظهر</h3><div id="inventoryInfo" style="font-size:13px;line-height:1.8;margin-bottom:10px"></div><div id="weaponSlots"></div><button id="closeBag">إغلاق</button></div></div>
+<div id="start"><div class="box"><h2>LAST SURVIVOR 3D</h2><p>خريطة حيّ ومطار صغير مع ضباب خفيف وواقعي. اختر السلاح من حقيبة الظهر، واقترب من الأبواب للدخول.</p><button id="go">ابدأ اللعب</button></div></div>
+<!-- تحميل مكتبة الرسم بالطريقة التقليدية لتفادي مشكلة الوحدات عند فتح الملف مباشرة -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.159.0/three.min.js"></script>
+<script>
+const THREE = window.THREE;
+if (!THREE) {
+  document.querySelector('#status').textContent = 'تعذّر تحميل مكتبة العرض ثلاثي الأبعاد. تأكد من اتصال الإنترنت ثم أعد فتح اللعبة.';
+  throw new Error('Three.js library did not load');
+}
+const canvas=document.querySelector('#game');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));
+renderer.setSize(innerWidth,innerHeight);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x8fc5dc);
+scene.fog=new THREE.Fog(0x9bb8c4,90,230); // ضباب خفيف وناعم، لا يحجب الرؤية
+const camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,420);
+scene.add(new THREE.HemisphereLight(0xdaf2ff,0x53604a,2.0));
+const sun=new THREE.DirectionalLight(0xfff0d6,2.1);sun.position.set(-25,45,20);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+const mat=(c)=>new THREE.MeshStandardMaterial({color:c,roughness:.9});
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(360,360),mat(0x657d53));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+// شارع رئيسي واضح في وسط الحي، والبيوت تبقى على جانبيه
+const road=new THREE.Mesh(new THREE.PlaneGeometry(12,360),mat(0x454b50));road.rotation.x=-Math.PI/2;road.position.set(0,.025,0);road.receiveShadow=true;scene.add(road);
+// شوارع فرعية عريضة تربط أحياء الخريطة
+for(const zRoad of [-96,0,96]){const cross=new THREE.Mesh(new THREE.PlaneGeometry(360,10),mat(0x454b50));cross.rotation.x=-Math.PI/2;cross.position.set(0,.028,zRoad);cross.receiveShadow=true;scene.add(cross)}
+for(let z=-175;z<180;z+=12){const line=new THREE.Mesh(new THREE.PlaneGeometry(.20,5),mat(0xe6dca8));line.rotation.x=-Math.PI/2;line.position.set(0,.045,z);scene.add(line)}
+for(const zRoad of [-96,0,96])for(let x=-175;x<180;x+=12){const line=new THREE.Mesh(new THREE.PlaneGeometry(5,.20),mat(0xe6dca8));line.rotation.x=-Math.PI/2;line.position.set(x,.047,zRoad);scene.add(line)}
+const buildings=[];
+const doors=[];
+// صناديق تصادم للجدران حتى لا يستطيع اللاعب المرور عبرها
+const wallColliders=[];
+// حدود المباني والأشجار لمنع المركبات من اختراقها
+const solidObstacles=[];
+function building(x,z,w,d,h,color){
+ const g=new THREE.Group();
+ const wall=mat(color), trim=mat(0x604a38), doorMat=mat(0x805333), glass=mat(0x8ed5e4);
+ g.userData.wallMaterial=wall;g.userData.originalWallColor=color;
+ // أساس وأرضية داخلية، مع جدران تحيط بالغرفة وتترك فتحة حقيقية للباب
+ const foundation=new THREE.Mesh(new THREE.BoxGeometry(w+.8,.42,d+.8),mat(0x8b8174));foundation.position.y=.21;foundation.receiveShadow=true;g.add(foundation);
+ const floor=new THREE.Mesh(new THREE.BoxGeometry(w-.18,.10,d-.18),mat(0xb9aa91));floor.position.set(0,.48,0);g.add(floor);
+ const t=.28, frontZ=d/2-t/2, backZ=-d/2+t/2;
+ const back=new THREE.Mesh(new THREE.BoxGeometry(w,h,t),wall);back.position.set(0,.42+h/2,backZ);g.add(back);
+ const sideL=new THREE.Mesh(new THREE.BoxGeometry(t,h,d),wall);sideL.position.set(-w/2+t/2,.42+h/2,0);g.add(sideL);
+ const sideR=sideL.clone();sideR.position.x=w/2-t/2;g.add(sideR);
+ // الواجهة الأمامية مقسومة حول مدخل الباب
+ const sideWidth=(w-1.25)/2;
+ for(const sign of [-1,1]){const seg=new THREE.Mesh(new THREE.BoxGeometry(sideWidth,h,t),wall);seg.position.set(sign*(1.25/2+sideWidth/2),.42+h/2,frontZ);g.add(seg);wallColliders.push({x:x+seg.position.x,z:z+frontZ,hx:sideWidth/2,hz:t/2})}
+ // الجدران الخلفية والجانبية، مع ترك فتحة الباب الأمامية خالية
+ wallColliders.push({x:x,z:z+backZ,hx:w/2,hz:t/2});
+ wallColliders.push({x:x-w/2+t/2,z:z,hx:t/2,hz:d/2});
+ wallColliders.push({x:x+w/2-t/2,z:z,hx:t/2,hz:d/2});
+ const lintel=new THREE.Mesh(new THREE.BoxGeometry(1.25,h-2.35,t),wall);lintel.position.set(0,.42+2.35+(h-2.35)/2,frontZ);g.add(lintel);
+ const roof=new THREE.Mesh(new THREE.BoxGeometry(w+.25,.35,d+.25),mat(0x41484d));roof.position.y=.42+h+.16;g.add(roof);
+ // أثاث داخلي بسيط فقط: تخت وخزانة وطاولة
+ const bedGroup=new THREE.Group();bedGroup.position.set(-w*.22,.54,-d*.18);g.add(bedGroup);
+ const bedBase=new THREE.Mesh(new THREE.BoxGeometry(2.15,.42,2.65),mat(0x79523c));bedBase.position.y=.24;bedGroup.add(bedBase);
+ const mattress=new THREE.Mesh(new THREE.BoxGeometry(2.05,.22,2.52),mat(0xe5dfd0));mattress.position.y=.55;bedGroup.add(mattress);
+ const pillow=new THREE.Mesh(new THREE.BoxGeometry(1.25,.16,.48),mat(0xf8f5ed));pillow.position.set(0,.72,-.86);bedGroup.add(pillow);
+ const wardrobe=new THREE.Mesh(new THREE.BoxGeometry(1.15,2.05,.72),mat(0x76503a));wardrobe.position.set(w*.32,1.56,-d*.28);g.add(wardrobe);
+ const wardrobeLine=new THREE.Mesh(new THREE.BoxGeometry(.035,1.7,.04),trim);wardrobeLine.position.set(w*.32,1.56,-d*.28+.38);g.add(wardrobeLine);
+ const tableTop=new THREE.Mesh(new THREE.BoxGeometry(1.45,.14,.9),mat(0x805b3e));tableTop.position.set(w*.20,1.12,d*.12);g.add(tableTop);
+ for(const dx of [-.58,.58])for(const dz of [-.32,.32]){const leg=new THREE.Mesh(new THREE.BoxGeometry(.10,.62,.10),trim);leg.position.set(w*.20+dx,.78,d*.12+dz);g.add(leg)}
+ // نوافذ أمامية جانبية
+ for(const xx of [-w*.30,w*.30]){const win=new THREE.Mesh(new THREE.BoxGeometry(.9,1.0,.06),glass);win.position.set(xx,2.65,d/2+.01);g.add(win)}
+ // باب مفصلي قابل للفتح للخارج عند الاقتراب
+ const hinge=new THREE.Group();hinge.position.set(-.625,.50,d/2+.06);g.add(hinge);
+ const panel=new THREE.Mesh(new THREE.BoxGeometry(1.25,2.25,.14),doorMat);panel.position.set(.625,1.125,0);panel.castShadow=true;hinge.add(panel);
+ const knob=new THREE.Mesh(new THREE.SphereGeometry(.055,10,8),mat(0xe0bd63));knob.position.set(1.08,1.08,-.09);hinge.add(knob);
+ const frameL=new THREE.Mesh(new THREE.BoxGeometry(.12,2.4,.18),trim);frameL.position.set(-.69,1.7,d/2+.02);g.add(frameL);
+ const frameR=frameL.clone();frameR.position.x=.69;g.add(frameR);
+ const frameTop=new THREE.Mesh(new THREE.BoxGeometry(1.5,.13,.18),trim);frameTop.position.set(0,2.88,d/2+.02);g.add(frameTop);
+ g.position.set(x,0,z);scene.add(g);buildings.push(g);
+ solidObstacles.push({x,z,hx:(w+.8)/2,hz:(d+.8)/2,height:h+.7,kind:"building"});
+ doors.push({hinge,building:g,open:false,worldX:x,worldZ:z+d/2});
+}
+for(let z=-160;z<=160;z+=19){
+  // اترك فراغاً واضحاً حول التقاطعات حتى لا تظهر البيوت فوق الشوارع
+  const clearOfCrossroads = q => ![-96,0,96].some(c=>Math.abs(q-c)<12);
+  if(clearOfCrossroads(z)) building(-13,z,9,9,7+Math.random()*8,0xb8a58a);
+  if(clearOfCrossroads(z-7)) building(14,z-7,10,9,8+Math.random()*12,0x9babb0);
+  if(Math.abs(z%38)>8){
+    if(clearOfCrossroads(z+5)) building(-34,z+5,10,10,7+Math.random()*7,0xb1a18b);
+    if(clearOfCrossroads(z-2)) building(35,z-2,10,10,8+Math.random()*8,0x9babb0);
+  }
+}
+function tree(x,z){
+ const g=new THREE.Group();const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.22,.32,2,7),mat(0x65442d));trunk.position.y=1;g.add(trunk);
+ const crown=new THREE.Mesh(new THREE.ConeGeometry(1.5,3.2,7),mat(0x2f7045));crown.position.y=3.2;crown.castShadow=true;g.add(crown);g.position.set(x,0,z);scene.add(g);
+ solidObstacles.push({x,z,hx:1.15,hz:1.15,height:4.9,kind:"tree"});
+}
+for(let i=0;i<68;i++){let z=-165+i*5;
+ // لا نزرع الأشجار على الشوارع الأفقية أو التقاطعات
+ if(![-96,0,96].some(c=>Math.abs(z-c)<9))tree(-48-(i%3)*2,z);
+ if(![-96,0,96].some(c=>Math.abs((z+2)-c)<9))tree(48+(i%4)*2,z+2);
+}
+// مطار صغير على طرف الخريطة: مدرج ومبنى صالة وبرج مراقبة وطائرة للزينة
+const airport=new THREE.Group();scene.add(airport);
+const tarmac=mat(0x555b60),runwayMark=mat(0xe5e5dc),airportGlass=mat(0x6f9eaa),airportWhite=mat(0xc9cfd0),airportDark=mat(0x39434a);
+const apron=new THREE.Mesh(new THREE.PlaneGeometry(82,116),tarmac);apron.rotation.x=-Math.PI/2;apron.position.set(112,.035,-12);airport.add(apron);
+const runway=new THREE.Mesh(new THREE.PlaneGeometry(24,108),mat(0x343a3e));runway.rotation.x=-Math.PI/2;runway.position.set(112,.055,-12);airport.add(runway);
+for(let z=-62;z<42;z+=10){const stripe=new THREE.Mesh(new THREE.PlaneGeometry(.55,5),runwayMark);stripe.rotation.x=-Math.PI/2;stripe.position.set(112,.075,z);airport.add(stripe)}
+for(const x of [100.2,123.8]){const edge=new THREE.Mesh(new THREE.PlaneGeometry(.22,106),runwayMark);edge.rotation.x=-Math.PI/2;edge.position.set(x,.072,-12);airport.add(edge)}
+// صالة المطار
+const terminal=new THREE.Group();terminal.position.set(112,0,62);airport.add(terminal);
+const terminalBody=new THREE.Mesh(new THREE.BoxGeometry(48,8,13),airportWhite);terminalBody.position.y=4;terminal.add(terminalBody);
+const terminalWindows=new THREE.Mesh(new THREE.BoxGeometry(43,3.2,.16),airportGlass);terminalWindows.position.set(0,4.2,6.58);terminal.add(terminalWindows);
+const terminalRoof=new THREE.Mesh(new THREE.BoxGeometry(50,.7,15),airportDark);terminalRoof.position.y=8.35;terminal.add(terminalRoof);
+const controlTower=new THREE.Group();controlTower.position.set(139,0,61);airport.add(controlTower);
+const towerStem=new THREE.Mesh(new THREE.BoxGeometry(3,12,3),airportWhite);towerStem.position.y=6;controlTower.add(towerStem);
+const towerCabin=new THREE.Mesh(new THREE.BoxGeometry(7,3.2,7),airportGlass);towerCabin.position.y=13.3;controlTower.add(towerCabin);
+const towerRoof=new THREE.Mesh(new THREE.BoxGeometry(8,.45,8),airportDark);towerRoof.position.y=15.1;controlTower.add(towerRoof);
+solidObstacles.push({x:112,z:62,hx:25,hz:7.5,height:9,kind:"building"},{x:139,z:61,hx:4.5,hz:4.5,height:16,kind:"building"});
+// طائرة ركاب تطير ببطء فوق المطار في مسار دائري واقعي
+const plane=new THREE.Group();plane.position.set(112,27,-12);airport.add(plane);
+const fuselage=new THREE.Mesh(new THREE.CylinderGeometry(.85,.85,20,16),airportWhite);fuselage.rotation.x=Math.PI/2;plane.add(fuselage);
+const nose=new THREE.Mesh(new THREE.ConeGeometry(.85,3,16),airportWhite);nose.rotation.x=-Math.PI/2;nose.position.z=-11;plane.add(nose);
+const tail=new THREE.Mesh(new THREE.BoxGeometry(5,.22,4),airportWhite);tail.position.z=7;plane.add(tail);
+const wing=new THREE.Mesh(new THREE.BoxGeometry(29,.22,4.5),airportWhite);wing.position.set(0,0,0);plane.add(wing);
+const fin=new THREE.Mesh(new THREE.BoxGeometry(.25,3.8,2.5),airportWhite);fin.position.set(0,2,8);plane.add(fin);
+for(const x of [-3.8,3.8]){const engine=new THREE.Mesh(new THREE.CylinderGeometry(.62,.62,2.8,12),airportDark);engine.rotation.x=Math.PI/2;engine.position.set(x,-.45,-1);plane.add(engine)}
+// طائرة قابلة للقيادة متوقفة على المدرج
+const drivePlane=new THREE.Group();drivePlane.position.set(112,1.05,-48);airport.add(drivePlane);
+const dpBody=new THREE.Mesh(new THREE.CylinderGeometry(.72,.72,16,14),airportWhite);dpBody.rotation.x=Math.PI/2;drivePlane.add(dpBody);
+const dpNose=new THREE.Mesh(new THREE.ConeGeometry(.72,2.6,14),airportWhite);dpNose.rotation.x=-Math.PI/2;dpNose.position.z=-9.2;drivePlane.add(dpNose);
+const dpTail=new THREE.Mesh(new THREE.BoxGeometry(4,.18,3),airportWhite);dpTail.position.z=6.8;drivePlane.add(dpTail);
+const dpWing=new THREE.Mesh(new THREE.BoxGeometry(24,.2,3.8),airportWhite);drivePlane.add(dpWing);
+const dpFin=new THREE.Mesh(new THREE.BoxGeometry(.22,3.1,2.1),airportWhite);dpFin.position.set(0,1.55,7);drivePlane.add(dpFin);
+for(const x of [-3.2,3.2]){const eng=new THREE.Mesh(new THREE.CylinderGeometry(.48,.48,2.2,12),airportDark);eng.rotation.x=Math.PI/2;eng.position.set(x,-.35,-.8);drivePlane.add(eng)}
+const wheelMat=mat(0x202428);for(const x of [-2.6,2.6]){const wh=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,.18,12),wheelMat);wh.rotation.z=Math.PI/2;wh.position.set(x,-1.0,1.5);drivePlane.add(wh)}
+// سيارة قابلة للقيادة قرب الشارع
+const car=new THREE.Group();car.position.set(7,0,22);scene.add(car);
+const carPaint=mat(0x1768a5),carGlass=mat(0x9bd9e8),rubber=mat(0x202326),lamp=mat(0xffefb0);
+const carBase=new THREE.Mesh(new THREE.BoxGeometry(2.25,.62,4.1),carPaint);carBase.position.y=.72;car.add(carBase);
+const carCabin=new THREE.Mesh(new THREE.BoxGeometry(1.72,.85,2.05),carGlass);carCabin.position.set(0,1.38,-.18);car.add(carCabin);
+for(const x of [-1,1])for(const z of [-1.35,1.35]){const w=new THREE.Mesh(new THREE.CylinderGeometry(.39,.39,.22,16),rubber);w.rotation.z=Math.PI/2;w.position.set(x,.43,z);car.add(w)}
+for(const x of [-.72,.72]){const l=new THREE.Mesh(new THREE.BoxGeometry(.32,.18,.08),lamp);l.position.set(x,.82,-2.08);car.add(l)}
+const carPickups=[];
+function addPickup(kind,label,x,z,color){const g=new THREE.Group();const box=new THREE.Mesh(new THREE.BoxGeometry(.62,.48,.52),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.22}));box.position.y=.42;g.add(box);const ring=new THREE.Mesh(new THREE.TorusGeometry(.48,.045,8,18),new THREE.MeshBasicMaterial({color:0xfff2a0}));ring.rotation.x=Math.PI/2;ring.position.y=.12;g.add(ring);g.position.set(x,0,z);scene.add(g);carPickups.push({group:g,kind,label,active:true});}
+addPickup('ammo','ذخيرة',-3,13,0x43d95c);addPickup('medkit','حقيبة إسعاف',13,8,0xe34b55);addPickup('tool','عدة أدوات',-14,-5,0xe0a33a);addPickup('energy','خلية طاقة',18,-14,0x42d8e8);addPickup('ammo','ذخيرة',-24,24,0x43d95c);
+
+
+// شخصية اللاعب الجديدة: تصميم مستوحى من الصورة المرسلة
+const player=new THREE.Group();scene.add(player);
+const skin=mat(0xd8a77e),shirt=mat(0xc83220),pants=mat(0x26313d),dark=mat(0x17232b);
+const white=mat(0xf0eee8),hair=mat(0x171719),shoeMat=mat(0x9e3027),soleMat=mat(0xd8d5ce);
+function part(geo,material,parent,x,y,z){const m=new THREE.Mesh(geo,material);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
+const torso=part(new THREE.CapsuleGeometry(.39,.48,6,12),shirt,player,0,1.58,0);torso.scale.set(1,.95,.62);
+// ياقة بيضاء وأطراف أكمام بيضاء مثل الشخصية المرجعية
+part(new THREE.BoxGeometry(.36,.10,.10),white,player,0,2.02,-.02);
+const collarL=part(new THREE.BoxGeometry(.16,.12,.07),white,player,-.105,1.99,-.105);collarL.rotation.z=-.28;
+const collarR=part(new THREE.BoxGeometry(.16,.12,.07),white,player,.105,1.99,-.105);collarR.rotation.z=.28;
+// الرأس والوجه
+const head=new THREE.Group();head.position.set(0,2.32,0);player.add(head);
+part(new THREE.SphereGeometry(.265,20,16),skin,head,0,0,0);
+const hairCap=part(new THREE.SphereGeometry(.275,20,14,0,Math.PI*2,0,Math.PI*.52),hair,head,0,.075,.015);
+part(new THREE.SphereGeometry(.12,14,10),hair,head,-.13,.17,-.015);
+function facePart(geometry,material,x,y,z,sx=1,sy=1,sz=1){const m=part(geometry,material,head,x,y,z);m.scale.set(sx,sy,sz);return m;}
+const eyeWhite=mat(0xf4eee5),iris=mat(0x493326),pupil=mat(0x171514),brow=mat(0x33231d),mouth=mat(0x713f38);
+for(const x of [-.095,.095]){
+ facePart(new THREE.SphereGeometry(.047,12,10),eyeWhite,x,.025,-.232,1,.78,.48);
+ facePart(new THREE.SphereGeometry(.023,10,8),iris,x,.025,-.255,1,1,.5);
+ facePart(new THREE.SphereGeometry(.012,8,8),pupil,x,.025,-.265,1,1,.45);
+ facePart(new THREE.BoxGeometry(.09,.022,.025),brow,x,.095,-.23,1,.8,.65);
+}
+facePart(new THREE.SphereGeometry(.04,10,8),skin,0,-.045,-.255,.72,1.05,.8);
+facePart(new THREE.BoxGeometry(.09,.014,.014),mouth,0,-.13,-.24,1,.75,.6);
+for(const x of [-.26,.26])facePart(new THREE.SphereGeometry(.055,10,8),skin,x,-.01,0,.42,.8,.55);
+// بنطال داكن وساقان مفصليتان للحركة الطبيعية
+part(new THREE.CapsuleGeometry(.34,.18,4,10),pants,player,0,1.08,0);
+function makeLeg(x){
+ const hip=new THREE.Group();hip.position.set(x,1.04,0);player.add(hip);
+ part(new THREE.CapsuleGeometry(.145,.43,5,10),pants,hip,0,-.29,0);
+ const knee=new THREE.Group();knee.position.y=-.56;hip.add(knee);
+ part(new THREE.CapsuleGeometry(.125,.43,5,10),pants,knee,0,-.27,0);
+ part(new THREE.BoxGeometry(.29,.14,.43),shoeMat,knee,0,-.57,-.075);
+ part(new THREE.BoxGeometry(.30,.055,.44),soleMat,knee,0,-.645,-.075);
+ return {hip,knee};
+}
+const legL=makeLeg(-.19),legR=makeLeg(.19);
+// ذراعان مع أكمام حمراء وحواف بيضاء
+function makeArm(x,side){
+ const shoulder=new THREE.Group();
+ // محور الكتف داخل حافة الجذع حتى لا تبدو الذراع منفصلة عن الجسم
+ shoulder.position.set(x,1.86,0);player.add(shoulder);
+ part(new THREE.SphereGeometry(.155,14,12),shirt,shoulder,0,-.015,0);
+ const upper=part(new THREE.CapsuleGeometry(.125,.34,5,10),shirt,shoulder,side*.095,-.23,0);upper.rotation.z=side*-.16;
+ const band=part(new THREE.CylinderGeometry(.13,.13,.13,12),white,shoulder,side*.19,-.43,0);band.rotation.z=side*-.16;
+ const lowerGroup=new THREE.Group();lowerGroup.position.set(side*.20,-.48,0);shoulder.add(lowerGroup);
+ part(new THREE.CapsuleGeometry(.09,.34,5,10),skin,lowerGroup,side*.035,-.23,0);
+ part(new THREE.SphereGeometry(.09,12,10),skin,lowerGroup,side*.04,-.46,0);
+ return {shoulder,lowerGroup};
+}
+const armL=makeArm(-.42,-1),armR=makeArm(.42,1);
+// قاذف طاقة خيالي أخضر، عريض وممسوك بكلتا اليدين (مؤثرات لعب غير واقعية)
+const weapon=new THREE.Group();
+const gunDark=mat(0x263b35), gunMetal=mat(0x526b60), greenMat=new THREE.MeshStandardMaterial({color:0x38ff55,emissive:0x12cc28,emissiveIntensity:1.8,roughness:.35});
+const gunBody=new THREE.Mesh(new THREE.BoxGeometry(.42,.28,1.12),gunDark);gunBody.position.set(0,1.48,-.48);weapon.add(gunBody);
+const barrel=new THREE.Mesh(new THREE.CylinderGeometry(.14,.18,.72,12),gunMetal);barrel.rotation.x=Math.PI/2;barrel.position.set(0,1.50,-1.12);weapon.add(barrel);
+const muzzle=new THREE.Mesh(new THREE.TorusGeometry(.16,.045,8,16),greenMat);muzzle.position.set(0,1.50,-1.49);weapon.add(muzzle);
+const topRail=new THREE.Mesh(new THREE.BoxGeometry(.16,.12,.58),gunMetal);topRail.position.set(0,1.69,-.55);weapon.add(topRail);
+const core=new THREE.Mesh(new THREE.BoxGeometry(.20,.13,.38),greenMat);core.position.set(0,1.49,-.55);weapon.add(core);
+const grip=new THREE.Mesh(new THREE.BoxGeometry(.16,.32,.18),gunDark);grip.position.set(0,1.25,-.24);weapon.add(grip);
+weapon.position.x=0;camera.add(weapon);
+// تموضع السلاح أمام الكاميرا ليظهر وكأن اللاعب يمسكه بيديه
+weapon.position.set(.34,-1.28,-.18);
+// سلاحان إضافيان قابلان للاختيار: مسدس وبندقية قنص خيالية
+function makeAltWeapon(type){
+ const g=new THREE.Group();const darkGun=mat(0x263b35),metalGun=mat(0x687b82),glowGun=new THREE.MeshStandardMaterial({color:0x55ff55,emissive:0x20cc28,emissiveIntensity:1.5});
+ if(type==='pistol'){
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.30,.20,.58),darkGun);body.position.set(0,1.47,-.42);g.add(body);
+  const slide=new THREE.Mesh(new THREE.BoxGeometry(.27,.10,.48),metalGun);slide.position.set(0,1.59,-.46);g.add(slide);
+  const barrel2=new THREE.Mesh(new THREE.CylinderGeometry(.055,.07,.28,10),glowGun);barrel2.rotation.x=Math.PI/2;barrel2.position.set(0,1.49,-.82);g.add(barrel2);
+  const handle=new THREE.Mesh(new THREE.BoxGeometry(.14,.30,.17),darkGun);handle.position.set(0,1.25,-.27);handle.rotation.x=-.15;g.add(handle);
+ }else{
+  const stock=new THREE.Mesh(new THREE.BoxGeometry(.25,.22,.62),darkGun);stock.position.set(0,1.47,-.18);g.add(stock);
+  const barrel2=new THREE.Mesh(new THREE.CylinderGeometry(.075,.09,1.65,12),metalGun);barrel2.rotation.x=Math.PI/2;barrel2.position.set(0,1.51,-1.08);g.add(barrel2);
+  const scope=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,.42,12),glowGun);scope.rotation.x=Math.PI/2;scope.position.set(0,1.72,-.62);g.add(scope);
+  const stock2=new THREE.Mesh(new THREE.BoxGeometry(.22,.20,.55),darkGun);stock2.position.set(0,1.44,.28);g.add(stock2);
+ }
+ g.visible=false;camera.add(g);g.position.set(.34,-1.28,-.18);return g;
+}
+const pistolWeapon=makeAltWeapon('pistol'),sniperWeapon=makeAltWeapon('sniper');
+let audioCtx=null,lastFootstep=0;
+function sound(type){try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();const now=audioCtx.currentTime;const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.connect(gain);gain.connect(audioCtx.destination);let f=type==='door'?170:type==='engine'?95:type==='pickup'?740:type==='shot'?260:type==='step'?105:420;osc.frequency.setValueAtTime(f,now);if(type==='door')osc.frequency.exponentialRampToValueAtTime(75,now+.18);else if(type==='pickup')osc.frequency.exponentialRampToValueAtTime(1150,now+.12);else if(type==='engine')osc.frequency.setValueAtTime(115+Math.random()*25,now);else osc.frequency.exponentialRampToValueAtTime(Math.max(45,f*.55),now+.09);gain.gain.setValueAtTime(type==='engine'?.035:.055,now);gain.gain.exponentialRampToValueAtTime(.001,now+(type==='door'?.2:.13));osc.start(now);osc.stop(now+(type==='door'?.21:.14));}catch(e){}}
+const weaponNames=['قاذف الطاقة','مسدس','قناصة'];let weaponIndex=0;
+function selectWeapon(i){weaponIndex=i;weapon.visible=weaponIndex===0;pistolWeapon.visible=weaponIndex===1;sniperWeapon.visible=weaponIndex===2;document.querySelector('#status').textContent='السلاح الحالي: '+weaponNames[weaponIndex];renderBackpack()}
+const inventory={ammo:60,medkit:0,tool:0,energy:0};
+function renderBackpack(){const slots=document.querySelector('#weaponSlots');if(!slots)return;document.querySelector('#inventoryInfo').innerHTML=`🔋 الذخيرة: ${inventory.ammo}<br>🩹 الإسعاف: ${inventory.medkit}<br>🧰 عدة الأدوات: ${inventory.tool}<br>⚡ خلايا الطاقة: ${inventory.energy}`;slots.innerHTML='';weaponNames.forEach((name,i)=>{const b=document.createElement('button');b.textContent=(i===weaponIndex?'✓ ':'')+name;b.className=i===weaponIndex?'selected':'';b.addEventListener('click',()=>{selectWeapon(i);document.querySelector('#backpackPanel').style.display='none'});slots.appendChild(b)})}
+function toggleBackpack(){const panel=document.querySelector('#backpackPanel');const opening=panel.style.display!=='flex';panel.style.display=opening?'flex':'none';if(opening)renderBackpack()}
+document.querySelector('#closeBag').addEventListener('click',()=>document.querySelector('#backpackPanel').style.display='none');
+
+// تثبيت اليدين حول جسم السلاح
+armR.shoulder.rotation.x=-.42;armL.shoulder.rotation.x=-.42;
+armR.shoulder.rotation.z=-.18;armL.shoulder.rotation.z=.18;
+armR.lowerGroup.rotation.x=-.30;armL.lowerGroup.rotation.x=-.30;
+player.position.set(0,0,22);
+player.visible=false; // إخفاء جسم الشخصية لأن الكاميرا أصبحت من منظور العينين
+// ذراعان ويدان ظاهرتان أسفل الشاشة ليبدو السلاح ممسوكاً باليدين
+const fpArms=new THREE.Group();camera.add(fpArms);
+const fpSleeve=mat(0xc83220),fpSkin=mat(0xd8a77e),fpCuff=mat(0xf0eee8);
+for(const side of [-1,1]){
+ const sleeve=new THREE.Mesh(new THREE.CapsuleGeometry(.105,.42,5,10),fpSleeve);
+ sleeve.position.set(side*.43,-.43,-.48);sleeve.rotation.z=side*-.30;fpArms.add(sleeve);
+ const cuff=new THREE.Mesh(new THREE.CylinderGeometry(.105,.105,.10,12),fpCuff);
+ cuff.position.set(side*.49,-.61,-.52);cuff.rotation.z=side*-.30;fpArms.add(cuff);
+ const hand=new THREE.Mesh(new THREE.SphereGeometry(.105,12,10),fpSkin);
+ hand.position.set(side*.38,-.62,-.70);fpArms.add(hand);
+}
+// شخصيات تدريب كرتونية غير واقعية حول الحي، تعود عند إعادة الجولة
+const targets=[];
+function makeTarget(x,z){
+ const g=new THREE.Group();
+ const body=new THREE.Mesh(new THREE.CapsuleGeometry(.28,.62,4,8),mat(0x4b7890));body.position.y=1.05;g.add(body);
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.23,12,10),mat(0xd7ae86));head.position.y=1.72;g.add(head);
+ const cap=new THREE.Mesh(new THREE.SphereGeometry(.24,12,8,0,Math.PI*2,0,Math.PI/2),mat(0x263b50));cap.position.y=1.82;g.add(cap);
+ const legs=[];for(const dx of [-.12,.12]){const leg=new THREE.Mesh(new THREE.CapsuleGeometry(.09,.42,4,8),mat(0x303943));leg.position.set(dx,.43,0);g.add(leg);legs.push(leg)}
+ g.position.set(x,0,z);scene.add(g);targets.push({group:g,hp:3,active:true,body,baseColor:0x4b7890});
+}
+makeTarget(-5,5);makeTarget(5,-8);makeTarget(20,12);makeTarget(-20,-12);
+const shots=[];let firing=false,lastShot=0;
+function spawnShot(){
+ if(inventory.ammo<=0){document.querySelector('#status').textContent='الذخيرة خلصت — اجمع صناديق الذخيرة';return;}inventory.ammo--;sound('shot');
+ const glow=new THREE.Mesh(new THREE.SphereGeometry(weaponIndex===1?.075:weaponIndex===2?.14:.105,10,8),new THREE.MeshStandardMaterial({color:0x53ff45,emissive:0x22ff18,emissiveIntensity:2.5}));
+ const origin=new THREE.Vector3(0,1.50,-1.58);origin.applyAxisAngle(new THREE.Vector3(0,1,0),viewYaw).add(player.position);
+ glow.position.copy(origin);scene.add(glow);
+ const cp=Math.cos(viewPitch),sp=Math.sin(viewPitch);const dir=new THREE.Vector3(-Math.sin(viewYaw)*cp,sp,-Math.cos(viewYaw)*cp);shots.push({mesh:glow,dir,life:weaponIndex===2?3.2:1.8,speed:weaponIndex===1?30:weaponIndex===2?52:22,damage:weaponIndex===2?3:weaponIndex===1?1:2});
+}
+function hitFlash(pos){const m=new THREE.Mesh(new THREE.SphereGeometry(.32,10,8),new THREE.MeshBasicMaterial({color:0x45ff38,transparent:true,opacity:.9}));m.position.copy(pos);scene.add(m);setTimeout(()=>{scene.remove(m);m.geometry.dispose();m.material.dispose()},220)}
+function resetRound(){
+ player.position.set(0,0,22);player.visible=true;inPlane=false;planeCockpit=false;inCar=false;car.position.set(7,0,22);car.rotation.set(0,0,0);carSpeed=0;inventory.ammo=60;inventory.medkit=0;inventory.tool=0;inventory.energy=0;for(const p of carPickups){p.active=true;p.group.visible=true}planeSpeed=0;planeClimb=0;drivePlane.position.set(112,1.05,-48);drivePlane.rotation.set(0,0,0);yaw=0;viewYaw=0;viewPitch=0;lastBodyYaw=0;vy=0;crouch=false;running=false;cameraReady=false;firing=false;
+ for(const shot of shots){scene.remove(shot.mesh);shot.mesh.geometry.dispose();shot.mesh.material.dispose()}shots.length=0;
+ for(const t of targets){t.hp=3;t.active=true;t.group.visible=true;t.body.material.color.setHex(t.baseColor)}
+ for(const b of buildings){if(b.userData.wallMaterial)b.userData.wallMaterial.color.setHex(b.userData.originalWallColor)}
+ for(const d of doors){d.open=false;d.hinge.rotation.y=0}
+ weaponIndex=0;weapon.visible=true;pistolWeapon.visible=false;sniperWeapon.visible=false;document.querySelector('#status').textContent='تمت إعادة الجولة — السلاح: قاذف الطاقة';
+}
+let yaw=0,vy=0,onGround=true,crouch=false,running=false;
+let cameraReady=false;
+const keys={};let started=false;
+let inPlane=false,planeSpeed=0,planeClimb=0,planeYaw=0,planeCockpit=false;
+const planeViewBtn=document.querySelector("#planeView");
+let inCar=false,carSpeed=0,carYaw=0;const carBtn=document.querySelector('#car-control');const doorBtn=document.querySelector('#door-control');
+function enterOrExitCar(){if(inCar){inCar=false;player.visible=false;player.position.set(car.position.x+2,0,car.position.z+1);viewYaw=carYaw;carSpeed=0;document.querySelector('#status').textContent='نزلت من السيارة';}else if(Math.hypot(player.position.x-car.position.x,player.position.z-car.position.z)<5){inCar=true;player.visible=false;carYaw=car.rotation.y;document.querySelector('#status').textContent='أنت داخل السيارة — العصا للتوجيه والحركة';sound('engine');}else{document.querySelector('#status').textContent='اقترب من السيارة أولاً';}}
+
+const planeEnterBtn=document.querySelector("#planeEnter"),planeUpBtn=document.querySelector("#planeUp"),planeDownBtn=document.querySelector("#planeDown");
+function enterOrExitPlane(){if(inPlane){if(drivePlane.position.y>2.4){document.querySelector("#status").textContent="هبّط الطائرة قبل النزول";return;}inPlane=false;planeCockpit=false;player.visible=true;player.position.set(drivePlane.position.x+3,0,drivePlane.position.z+2);yaw=drivePlane.rotation.y;cameraReady=false;planeSpeed=0;document.querySelector("#status").textContent="نزلت من الطائرة";}else if(Math.hypot(player.position.x-drivePlane.position.x,player.position.z-drivePlane.position.z)<7){inPlane=true;planeCockpit=false;player.visible=false;planeYaw=drivePlane.rotation.y;cameraReady=false;document.querySelector("#status").textContent="أنت داخل الطائرة — حرّك العصا للتوجيه";}}
+// اختبار اصطدام دائري مبسط مع صناديق الجدران. يسمح بالدخول من فتحة الباب فقط.
+const PLAYER_RADIUS=.38;
+function collidesAt(px,pz){
+ for(const b of wallColliders){
+  const cx=Math.max(b.x-b.hx,Math.min(px,b.x+b.hx));
+  const cz=Math.max(b.z-b.hz,Math.min(pz,b.z+b.hz));
+  const dx=px-cx,dz=pz-cz;
+  if(dx*dx+dz*dz<PLAYER_RADIUS*PLAYER_RADIUS)return true;
+ }
+ // الباب المغلق يمنع المرور، وعند فتحه تصبح الفتحة متاحة
+ for(const d of doors){if(!d.open){
+  const cx=d.worldX,cz=d.worldZ+.06;
+  const closestX=Math.max(cx-.625,Math.min(px,cx+.625));
+  const closestZ=Math.max(cz-.10,Math.min(pz,cz+.10));
+  const dx=px-closestX,dz=pz-closestZ;
+  if(dx*dx+dz*dz<PLAYER_RADIUS*PLAYER_RADIUS)return true;
+ }}
+ return false;
+}
+function moveWithCollisions(dx,dz){
+ const nx=player.position.x+dx;
+ if(!collidesAt(nx,player.position.z))player.position.x=nx;
+ const nz=player.position.z+dz;
+ if(!collidesAt(player.position.x,nz))player.position.z=nz;
+}
+// فحص اصطدام دائري للمركبات مع المباني والأشجار. الطائرة تصطدم فقط إذا كانت منخفضة بما يكفي.
+function vehicleBlocked(x,z,radius,vehicleBottom,vehicleTop){
+ for(const o of solidObstacles){
+  if(vehicleTop < 0 || vehicleBottom > o.height) continue;
+  const cx=Math.max(o.x-o.hx,Math.min(x,o.x+o.hx));
+  const cz=Math.max(o.z-o.hz,Math.min(z,o.z+o.hz));
+  const dx=x-cx,dz=z-cz;
+  if(dx*dx+dz*dz < radius*radius) return true;
+ }
+ return false;
+}
+function toggleNearestDoor(){let best=null,bestD=1e9;for(const d of doors){const dx=player.position.x-d.worldX,dz=player.position.z-d.worldZ,dist=Math.hypot(dx,dz);if(dist<bestD){bestD=dist;best=d}}if(best&&bestD<4.2){best.open=!best.open;best.hinge.rotation.y=best.open?-1.35:0;sound('door');document.querySelector('#status').textContent=best.open?'الباب مفتوح — يمكنك الدخول':'تم إغلاق الباب'}else{document.querySelector('#status').textContent='اقترب من باب أحد البيوت أولاً'}}
+function setKey(k,v){keys[k]=v}
+let stickX=0,stickY=0,stickPointer=null;
+const joystick=document.querySelector('#joystick'),stick=document.querySelector('#stick');
+function updateStick(e){
+ const r=joystick.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+ let dx=e.clientX-cx,dy=e.clientY-cy;const max=r.width*.34,len=Math.hypot(dx,dy);
+ if(len>max){dx=dx/len*max;dy=dy/len*max}
+ stickX=dx/max;stickY=dy/max;
+ stick.style.left=`calc(50% + ${dx}px)`;stick.style.top=`calc(50% + ${dy}px)`;
+}
+function releaseStick(){stickPointer=null;stickX=0;stickY=0;stick.style.left='50%';stick.style.top='50%'}
+joystick.addEventListener('pointerdown',e=>{e.preventDefault();stickPointer=e.pointerId;joystick.setPointerCapture(e.pointerId);updateStick(e)});
+joystick.addEventListener('pointermove',e=>{if(e.pointerId===stickPointer)updateStick(e)});
+joystick.addEventListener('pointerup',e=>{if(e.pointerId===stickPointer)releaseStick()});
+joystick.addEventListener('pointercancel',releaseStick);
+// سحب أي مساحة فارغة من الشاشة يحرك الرأس/النظر فقط، والعصا والأزرار تبقى مستقلة.
+let lookPointer=null,lastLookX=0,lastLookY=0,viewYaw=0,viewPitch=0,lastBodyYaw=0;
+function isControlTarget(target){return !!(target.closest && target.closest('#joystick, #controls button, #backpackPanel, #start'));}
+document.addEventListener('pointerdown',e=>{
+ if(isControlTarget(e.target))return;
+ if(e.pointerType==='mouse' && e.button!==0)return;
+ if(lookPointer!==null)return;
+ lookPointer=e.pointerId;lastLookX=e.clientX;lastLookY=e.clientY;
+ try{e.target.setPointerCapture(e.pointerId)}catch(_){ }
+});
+document.addEventListener('pointermove',e=>{
+ if(e.pointerId!==lookPointer)return;
+ const dx=e.clientX-lastLookX,dy=e.clientY-lastLookY;
+ lastLookX=e.clientX;lastLookY=e.clientY;
+ viewYaw-=dx*.009;
+ viewPitch=THREE.MathUtils.clamp(viewPitch-dy*.009,-1.30,1.30);
+});
+function endLook(e){if(e.pointerId===lookPointer)lookPointer=null;}
+document.addEventListener('pointerup',endLook);
+document.addEventListener('pointercancel',endLook);
+document.querySelectorAll('[data-action]').forEach(b=>{
+ const a=b.dataset.action;
+ b.addEventListener('pointerdown',e=>{e.preventDefault();if(a==='jump'&&onGround){vy=8.5;onGround=false}
+ if(a==='run')running=true;if(a==='crouch')crouch=!crouch;if(a==='open')toggleNearestDoor();if(a==='fire')firing=true;if(a==='backpack')toggleBackpack();if(a==='reset')resetRound();if(a==='plane')enterOrExitPlane();if(a==='planeView'&&inPlane){planeCockpit=!planeCockpit;cameraReady=false;planeViewBtn.textContent=planeCockpit?'منظور خلف الطائرة':'منظور داخل الطائرة';}if(a==='car')enterOrExitCar();if(a==='planeUp'&&inPlane)planeClimb=1;if(a==='planeDown'&&inPlane)planeClimb=-1});
+ b.addEventListener('pointerup',()=>{if(a==='run')running=false;if(a==='fire')firing=false;if(a==='planeUp'||a==='planeDown')planeClimb=0;if(a==='planeUp'||a==='planeDown')planeClimb=0});
+ b.addEventListener('pointercancel',()=>{if(a==='run')running=false;if(a==='fire')firing=false;if(a==='planeUp'||a==='planeDown')planeClimb=0;if(a==='planeUp'||a==='planeDown')planeClimb=0});
+});
+addEventListener('keydown',e=>{if(e.key.startsWith('Arrow'))e.preventDefault();if(e.key==='ArrowUp'||e.key==='w')keys.forward=true;if(e.key==='ArrowDown'||e.key==='s')keys.back=true;if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;if(e.key==='ArrowRight'||e.key==='d')keys.right=true;if(e.key===' '&&onGround){vy=8.5;onGround=false}if(e.key==='e'||e.key==='E')toggleNearestDoor()});
+addEventListener('keyup',e=>{if(e.key==='ArrowUp'||e.key==='w')keys.forward=false;if(e.key==='ArrowDown'||e.key==='s')keys.back=false;if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;if(e.key==='ArrowRight'||e.key==='d')keys.right=false});
+document.querySelector('#go').onclick=()=>{started=true;document.querySelector('#start').style.display='none';document.querySelector('#status').textContent='المطار أمامك — اختر السلاح من حقيبة الظهر، وافتح الأبواب عند الاقتراب'};
+function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)}addEventListener('resize',resize);
+const mapCanvas=document.querySelector('#miniMap'),mapCtx=mapCanvas.getContext('2d');
+function drawMiniMap(){const c=mapCtx,w=mapCanvas.width,h=mapCanvas.height;c.clearRect(0,0,w,h);c.fillStyle='#263d35';c.fillRect(0,0,w,h);const scale=0.72,ox=w/2,oy=h/2;c.fillStyle='#555b60';c.fillRect(ox-7*scale,0,14*scale,h);c.fillRect(0,oy-5*scale,w,10*scale);for(const z of [-96,96])c.fillRect(0,oy+z*scale-4*scale,w,8*scale);c.fillStyle='#b5a58a';for(const b of buildings){const x=ox+b.position.x*scale,y=oy+b.position.z*scale;c.fillRect(x-4,y-4,8,8)}c.fillStyle='#e6e6e6';c.fillRect(ox+112*scale-9,oy-48*scale-7,18,14);c.fillStyle='#2989dc';c.save();c.translate(ox+car.position.x*scale,oy+car.position.z*scale);c.rotate(-carYaw);c.fillRect(-5,-8,10,16);c.restore();const px=inCar?car.position.x:player.position.x,pz=inCar?car.position.z:player.position.z;c.fillStyle='#ffdf35';c.beginPath();c.arc(ox+px*scale,oy+pz*scale,5,0,Math.PI*2);c.fill();c.strokeStyle='#fff';c.lineWidth=2;c.stroke();c.fillStyle='#fff';c.font='13px Arial';c.fillText('N',w/2-4,15);}
+const clock=new THREE.Clock();
+function animate(){
+ requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.04);
+ // تحليق هادئ فوق المطار: مسار واسع وارتفاع ثابت تقريباً مع ميل خفيف عند الالتفاف
+ const flightT=clock.elapsedTime*.11;
+ plane.position.set(112+Math.cos(flightT)*43,27+Math.sin(flightT*2)*1.2,-12+Math.sin(flightT)*34);
+ plane.rotation.y=-flightT;
+ plane.rotation.z=Math.sin(flightT)*.035;
+ if(started){
+  if(firing && performance.now()-lastShot>(weaponIndex===1?260:weaponIndex===2?700:150)){spawnShot();lastShot=performance.now()}
+  // مقذوفات طاقة خضراء خيالية؛ تصيب المباني وشخصيات التدريب بمؤثرات ضوئية فقط
+  for(let i=shots.length-1;i>=0;i--){
+   const sh=shots[i];sh.mesh.position.addScaledVector(sh.dir,sh.speed*dt);sh.life-=dt;let hit=false;
+   for(const t of targets){if(t.active && sh.mesh.position.distanceTo(new THREE.Vector3(t.group.position.x,1.15,t.group.position.z))<.75){t.hp-=sh.damage;hitFlash(sh.mesh.position.clone());if(t.hp<=0){t.active=false;t.group.visible=false}hit=true;break}}
+   if(!hit){for(const b of buildings){const box=new THREE.Box3().setFromObject(b);box.expandByScalar(.15);if(box.containsPoint(sh.mesh.position)){hitFlash(sh.mesh.position.clone());const wm=b.userData.wallMaterial;if(wm){wm.color.setHex(0x65a36a);setTimeout(()=>wm.color.setHex(b.userData.originalWallColor),450)}hit=true;break}}}
+   if(hit||sh.life<=0){scene.remove(sh.mesh);sh.mesh.geometry.dispose();sh.mesh.material.dispose();shots.splice(i,1)}
+  }
+  const speed=(running?5.7:3.0)*(crouch?.48:1);
+  // العصا نفسها تقود الطائرة عند الركوب: يمين/يسار للتوجيه وأعلى/أسفل للسرعة
+  let inputX=stickX+(keys.right?1:0)-(keys.left?1:0);
+  let inputY=-stickY+(keys.forward?1:0)-(keys.back?1:0);
+  const inputLen=Math.hypot(inputX,inputY);
+  if(inCar){
+   carYaw-=inputX*dt*1.15;carSpeed=THREE.MathUtils.clamp(carSpeed+inputY*dt*9,-7,19);const carForward=new THREE.Vector3(-Math.sin(carYaw),0,-Math.cos(carYaw));
+   const nextCarX=THREE.MathUtils.clamp(car.position.x+carForward.x*carSpeed*dt,-165,165),nextCarZ=THREE.MathUtils.clamp(car.position.z+carForward.z*carSpeed*dt,-165,165);
+   if(vehicleBlocked(nextCarX,nextCarZ,1.05,.15,1.9)){carSpeed=0;document.querySelector('#status').textContent='اصطدمت السيارة ببيت أو شجرة — توقفت';}
+   else car.position.set(nextCarX,car.position.y,nextCarZ);
+   car.rotation.y=carYaw;if(Math.abs(carSpeed)>.3 && performance.now()-lastFootstep>430){sound('engine');lastFootstep=performance.now();}
+  }else if(inPlane){
+   planeYaw-=inputX*dt*.72;planeSpeed=THREE.MathUtils.clamp(planeSpeed+inputY*dt*5,-5,22);
+   const forward=new THREE.Vector3(-Math.sin(planeYaw),0,-Math.cos(planeYaw));
+   const nextPlaneX=drivePlane.position.x+forward.x*planeSpeed*dt,nextPlaneZ=drivePlane.position.z+forward.z*planeSpeed*dt;
+   const nextPlaneY=THREE.MathUtils.clamp(drivePlane.position.y+planeClimb*dt*5,1.05,35);
+   if(vehicleBlocked(nextPlaneX,nextPlaneZ,2.8,Math.max(0,nextPlaneY-1.3),nextPlaneY+2.2)){planeSpeed=0;document.querySelector('#status').textContent='اصطدمت الطائرة ببيت أو شجرة — خفّض سرعتها وغيّر اتجاهك';}
+   else drivePlane.position.set(nextPlaneX,nextPlaneY,nextPlaneZ);
+   drivePlane.rotation.y=planeYaw;drivePlane.rotation.z=THREE.MathUtils.clamp(-inputX*.16,-.18,.18);
+   if(drivePlane.position.y<=1.06 && planeSpeed<2)planeSpeed=0;
+  }else if(inputLen>.08){
+   // الحركة مرتبطة باتجاه النظر فقط؛ العصا لا تدوّر جسم اللاعب ولا تجعله يلف بمكانه
+   const forwardDir=new THREE.Vector3(-Math.sin(viewYaw),0,-Math.cos(viewYaw));
+   const rightDir=new THREE.Vector3(Math.cos(viewYaw),0,-Math.sin(viewYaw));
+   const moveDir=rightDir.multiplyScalar(inputX).add(forwardDir.multiplyScalar(inputY)).normalize();
+   const step=speed*Math.min(inputLen,1)*dt;
+   moveWithCollisions(moveDir.x*step,moveDir.z*step);
+  }
+  if(!inPlane&&!inCar){for(const p of carPickups){if(p.active&&Math.hypot(player.position.x-p.group.position.x,player.position.z-p.group.position.z)<2.0){p.active=false;p.group.visible=false;if(p.kind==='ammo')inventory.ammo+=30;else inventory[p.kind]=(inventory[p.kind]||0)+1;sound('pickup');document.querySelector('#status').textContent='جمعت: '+p.label;}}
+   if(inputLen>.08 && performance.now()-lastFootstep>430){sound('step');lastFootstep=performance.now();}}
+  vy-=20*dt;player.position.y+=vy*dt;if(player.position.y<=0){player.position.y=0;vy=0;onGround=true}
+  // منظور الشخص الأول: الإصبع يحرّك الرأس/النظر فقط؛ لا ندوّر جسم اللاعب مع العصا.
+  // اتجاه النظر الأفقي viewYaw والرأسي viewPitch مستقلان عن حركة الجسم.
+  let target,desired;
+  if(inPlane){
+   player.visible=false;fpArms.visible=false;weapon.visible=false;pistolWeapon.visible=false;sniperWeapon.visible=false;
+   if(planeCockpit){
+    const cockpitPos=drivePlane.localToWorld(new THREE.Vector3(0,1.25,-2.1));
+    const cockpitLook=drivePlane.localToWorld(new THREE.Vector3(0,1.05,-24));
+    camera.position.copy(cockpitPos);camera.lookAt(cockpitLook);
+   }else{
+    target=drivePlane.position.clone().add(new THREE.Vector3(0,1.6,0));const back=new THREE.Vector3(Math.sin(planeYaw)*15,6,Math.cos(planeYaw)*15);desired=target.clone().add(back);
+    if(!cameraReady){camera.position.copy(desired);cameraReady=true;}else camera.position.lerp(desired,1-Math.exp(-7.5*dt));camera.lookAt(target);
+   }
+  }else if(inCar){player.visible=false;fpArms.visible=false;weapon.visible=false;pistolWeapon.visible=false;sniperWeapon.visible=false;target=car.position.clone().add(new THREE.Vector3(0,1.2,0));const back=new THREE.Vector3(Math.sin(carYaw)*7,3.1,Math.cos(carYaw)*7);desired=target.clone().add(back);camera.position.copy(desired);camera.lookAt(target);
+  }else{
+   player.visible=false;fpArms.visible=true;
+   desired=new THREE.Vector3(player.position.x,player.position.y+(crouch?1.62:1.78),player.position.z);
+   const cp=Math.cos(viewPitch),sp=Math.sin(viewPitch);
+   const lookDir=new THREE.Vector3(-Math.sin(viewYaw)*cp,sp,-Math.cos(viewYaw)*cp);
+   camera.position.copy(desired);camera.lookAt(desired.clone().add(lookDir.multiplyScalar(12)));
+   weapon.visible=weaponIndex===0;pistolWeapon.visible=weaponIndex===1;sniperWeapon.visible=weaponIndex===2;
+  }
+  const moving=!!(inputLen>.08);
+  const gait=moving?Math.sin(performance.now()*.012*(running?1.55:1)):0;
+  legL.hip.rotation.x=gait*.62;legR.hip.rotation.x=-gait*.62;
+  legL.knee.rotation.x=Math.max(0,-gait)*.72;legR.knee.rotation.x=Math.max(0,gait)*.72;
+  armL.shoulder.rotation.x=-gait*.38;armR.shoulder.rotation.x=gait*.38;
+  armL.lowerGroup.rotation.x=.08+Math.max(0,gait)*.18;armR.lowerGroup.rotation.x=.08+Math.max(0,-gait)*.18;
+  torso.position.y=crouch?1.38:1.58;torso.scale.y=crouch?.82:.95;
+  head.position.y=crouch?2.10:2.32;
+  let nearestDoor=null,nearestDoorDist=1e9; if(!inCar&&!inPlane){for(const d of doors){const dd=Math.hypot(player.position.x-d.worldX,player.position.z-d.worldZ);if(dd<nearestDoorDist){nearestDoorDist=dd;nearestDoor=d;}}} doorBtn.style.display=(nearestDoor&&nearestDoorDist<4.2)?'block':'none'; if(nearestDoor&&nearestDoorDist<4.2)doorBtn.textContent=nearestDoor.open?'إغلاق الباب':'فتح الباب';
+  const nearCar=Math.hypot(player.position.x-car.position.x,player.position.z-car.position.z)<5;carBtn.style.display=(inCar||nearCar)?'block':'none';carBtn.textContent=inCar?'النزول من السيارة':'ركوب السيارة';
+  const nearPlane=Math.hypot(player.position.x-drivePlane.position.x,player.position.z-drivePlane.position.z)<7;planeEnterBtn.style.display=(inPlane||nearPlane)?'block':'none';planeEnterBtn.textContent=inPlane?'النزول من الطائرة':'ركوب الطائرة';planeUpBtn.style.display=inPlane?'block':'none';planeDownBtn.style.display=inPlane?'block':'none';planeViewBtn.style.display=inPlane?'block':'none';if(inPlane){document.querySelector('#status').textContent='سرعة الطائرة: '+Math.round(Math.abs(planeSpeed)*10)+' كم/س تقريباً';}else{document.querySelector('#status').textContent='الموقع: '+Math.round(player.position.x)+', '+Math.round(player.position.z)+(crouch?' — انحناء':'');}
+ }else{camera.position.set(0,8,34);camera.lookAt(0,0,0)}
+ drawMiniMap();renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>
